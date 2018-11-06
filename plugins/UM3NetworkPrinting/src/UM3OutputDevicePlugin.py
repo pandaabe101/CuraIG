@@ -142,7 +142,8 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         for key, output_device in self._discovered_devices.items():
             if key == um_network_key:
                 # This is the printer we have currently activated
-                return self._tryConnectingToOutputDevice(key, output_device)
+                self._tryConnectingToOutputDevice(key, output_device)
+                return
             self._tryDisconnectingFromOutputDevice(key, output_device)
 
     ##  Update the connection states when connecting to the active machine.
@@ -163,7 +164,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         output_device.connectionStateChanged.disconnect(self._onDeviceConnectionStateChanged)
 
     ##  Callback for when a device connection state changed to either connected or disconnected.
-    def _onDeviceConnectionStateChanged(self, key) -> None:
+    def _onDeviceConnectionStateChanged(self, key: str) -> None:
     
         # If we don't care about the device we ignore the status change.
         if key not in self._discovered_devices:
