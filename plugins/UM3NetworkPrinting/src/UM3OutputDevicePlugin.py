@@ -340,44 +340,50 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         print("reply", reply)
         pass
 
-    def _onRemoveDevice(self, device_id):
-        device = self._discovered_devices.pop(device_id, None)
-        if device:
-            if device.isConnected():
-                device.disconnect()
-                try:
-                    device.connectionStateChanged.disconnect(self._onDeviceConnectionStateChanged)
-                except TypeError:
-                    # Disconnect already happened.
-                    pass
-
-            self.discoveredDevicesChanged.emit()
-
     ##  Check what kind of device we need to add.
     #   Depending on the firmware we either add a "Connect"/"Cluster" or "Legacy" UM3 device.
     def _onAddDevice(self, name: str, address: str, properties):
         cluster_size = int(properties.get(b"cluster_size", -1))
         printer_type = properties.get(b"machine", b"").decode("utf-8")
 
+        # By default the printer is unknown.
+        # We then use the type registry to see if we can identify the machine type.
+        properties[b"printer_type"] = b"Unknown"
         for key, value in self._printer_type_identifiers.items():
             if printer_type.startswith(key):
                 properties[b"printer_type"] = bytes(value, encoding="utf8")
                 break
-        else:
-            properties[b"printer_type"] = b"Unknown"
-            
-        if cluster_size >= 0:
-            device = ClusterUM3OutputDevice.ClusterUM3OutputDevice(name, address, properties)
-        else:
-            device = LegacyUM3OutputDevice.LegacyUM3OutputDevice(name, address, properties)
-
+        
+        # Select the correct output device depending on whether the networked device is a cluster or not.
+        device = ClusterUM3OutputDevice.ClusterUM3OutputDevice(name, address, properties) if cluster_size >= 0 \
+            else LegacyUM3OutputDevice.LegacyUM3OutputDevice(name, address, properties)
+        
         self._discovered_devices[device.getId()] = device
         self.discoveredDevicesChanged.emit()
 
+        # If the active machine is this networked device, we immediately connect to it.
         global_container_stack = self._application.getGlobalContainerStack()
         if global_container_stack and device.getId() == global_container_stack.getMetaDataEntry("um_network_key"):
             device.connect()
             device.connectionStateChanged.connect(self._onDeviceConnectionStateChanged)
+
+    ##  Handle removing a device from local network discovery.
+    def _onRemoveDevice(self, device_id):
+        device = self._discovered_devices.pop(device_id, None)  # type: PrinterOutputDevice
+        if not device:
+            return
+        if device.isConnected():
+            self._disconnectDevice(device)
+        self.discoveredDevicesChanged.emit()
+
+    ##  Try to disconnect from a device.
+    def _disconnectDevice(self, device: "PrinterOutputDevice") -> None:
+        try:
+            device.disconnect()
+            device.connectionStateChanged.disconnect(self._onDeviceConnectionStateChanged)
+        except TypeError:
+            # Disconnect already happened, we can safely ignore this.
+            pass
 
     ##  Appends a service changed request so later the handling thread will pick it up and processes it.
     def _appendServiceChangedRequest(self, zeroconf, service_type, name, state_change):
