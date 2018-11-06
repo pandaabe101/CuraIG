@@ -1,20 +1,19 @@
 # Copyright (c) 2018 Ultimaker B.V.
 # Cura is released under the terms of the LGPLv3 or higher.
+from typing import Union, TYPE_CHECKING
 
 from UM.Logger import Logger
 from UM.Signal import Signal
 
-from typing import Union
-
-MYPY = False
-if MYPY:
+if TYPE_CHECKING:
     from cura.PrinterOutput.PrintJobOutputModel import PrintJobOutputModel
     from cura.PrinterOutput.ExtruderOutputModel import ExtruderOutputModel
     from cura.PrinterOutput.PrinterOutputModel import PrinterOutputModel
-    from cura.PrinterOutput.PrinterOutputDevice import PrinterOutputDevice
+    from cura.PrinterOutputDevice import PrinterOutputDevice
 
 
 class PrinterOutputController:
+    
     def __init__(self, output_device: "PrinterOutputDevice") -> None:
         self.can_pause = True
         self.can_abort = True
@@ -23,7 +22,7 @@ class PrinterOutputController:
         self.can_send_raw_gcode = True
         self.can_control_manually = True
         self.can_update_firmware = False
-        self._output_device = output_device
+        self._output_device = output_device  # type: PrinterOutputDevice
 
     def setTargetHotendTemperature(self, printer: "PrinterOutputModel", position: int, temperature: Union[int, float]) -> None:
         Logger.log("w", "Set target hotend temperature not implemented in controller")
