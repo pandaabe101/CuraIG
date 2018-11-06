@@ -1,32 +1,32 @@
 # Copyright (c) 2017 Ultimaker B.V.
 # Cura is released under the terms of the LGPLv3 or higher.
 import json
-from typing import TYPE_CHECKING, Optional, Dict, Callable
-
-from zeroconf import Zeroconf, ServiceBrowser, ServiceStateChange, ServiceInfo
 from queue import Queue
 from threading import Event, Thread
 from time import time
+from typing import TYPE_CHECKING, Optional, Dict, Callable
+
+from zeroconf import Zeroconf, ServiceBrowser, ServiceStateChange, ServiceInfo
 from PyQt5.QtNetwork import QNetworkRequest, QNetworkAccessManager, QNetworkReply
 from PyQt5.QtCore import QUrl
 
 from UM.OutputDevice.OutputDevicePlugin import OutputDevicePlugin
 from UM.Logger import Logger
-from UM.Application import Application
 from UM.Signal import Signal, signalemitter
 from UM.Version import Version
-from cura.API import Account
 
 from . import ClusterUM3OutputDevice, LegacyUM3OutputDevice
 
 
 if TYPE_CHECKING:
     from cura.CuraApplication import CuraApplication
+    from cura.API import Account
+    from cura.PrinterOutputDevice import PrinterOutputDevice
 
 
-## This plugin handles the connection detection & creation of output device objects for the UM3 printer.
-#  Zero-Conf is used to detect printers, which are saved in a dict.
-#  If we discover a printer that has the same key as the active machine instance a connection is made.
+##  This plugin handles the connection detection & creation of output device objects for the UM3 printer.
+#   Zero-Conf is used to detect printers, which are saved in a dict.
+#   If we discover a printer that has the same key as the active machine instance a connection is made.
 @signalemitter
 class UM3OutputDevicePlugin(OutputDevicePlugin):
     
@@ -81,7 +81,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         # ZeroConf/discovery instances.
         self._zero_conf = None  # type: Optional[Zeroconf]
         self._zero_conf_browser = None
-        self._discovered_devices = {}
+        self._discovered_devices = {}  # type: Dict[str, PrinterOutputDevice]
         
         # The zero-conf service changed requests are handled in a separate thread,
         # so we can re-schedule the requests which fail to get detailed service info.
@@ -99,8 +99,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         # Check all connections when switching active machine.
         application.globalContainerStackChanged.connect(self.reCheckConnections)
 
-    # TODO: better typing of dict, or make discovered devices a proper model object?
-    def getDiscoveredDevices(self) -> dict:
+    def getDiscoveredDevices(self) -> Dict[str, "PrinterOutputDevice"]:
         return self._discovered_devices
 
     def getLastManualDevice(self) -> str:
@@ -140,20 +139,28 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             return
 
         um_network_key = active_machine.getMetaDataEntry("um_network_key")
-
-        for key in self._discovered_devices:
+        for key, output_device in self._discovered_devices:
             if key == um_network_key:
-                if not self._discovered_devices[key].isConnected():
-                    Logger.log("d", "Attempting to connect with [%s]" % key)
-                    self._discovered_devices[key].connect()
-                    self._discovered_devices[key].connectionStateChanged.connect(self._onDeviceConnectionStateChanged)
-                else:
-                    self._onDeviceConnectionStateChanged(key)
-            else:
-                if self._discovered_devices[key].isConnected():
-                    Logger.log("d", "Attempting to close connection with [%s]" % key)
-                    self._discovered_devices[key].close()
-                    self._discovered_devices[key].connectionStateChanged.disconnect(self._onDeviceConnectionStateChanged)
+                # This is the printer we have currently activated
+                return self._tryConnectingToOutputDevice(key, output_device)
+            self._tryDisconnectingFromOutputDevice(key, output_device)
+
+    ##  Update the connection states when connecting to the active machine.
+    def _tryConnectingToOutputDevice(self, key: str, output_device: "PrinterOutputDevice") -> None:
+        if output_device.isConnected():
+            self._onDeviceConnectionStateChanged(key)
+            return
+        Logger.log("d", "Attempting to connect with [%s]" % key)
+        output_device.connect()
+        output_device.connectionStateChanged.connect(self._onDeviceConnectionStateChanged)
+        
+    ##  Update the connection states when disconnecting from the active machine.
+    def _tryDisconnectingFromOutputDevice(self, key: str, output_device: "PrinterOutputDevice") -> None:
+        if not output_device.isConnected():
+            return
+        Logger.log("d", "Attempting to close connection with [%s]" % key)
+        output_device.close()
+        output_device.connectionStateChanged.disconnect(self._onDeviceConnectionStateChanged)
 
     ##  Callback for when a device connection state changed to either connected or disconnected.
     def _onDeviceConnectionStateChanged(self, key) -> None:
