@@ -71,7 +71,8 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         # Get list of manual instances from preferences
         # The format is a comma-separated list of IP addresses and/or host names.
         self._manual_instances_preference_key = "um3networkprinting/manual_instances"
-        self._application.getPreferences().addPreference(self._manual_instances_preference_key, "")
+        self._preferences = self._application.getPreferences()
+        self._preferences.addPreference(self._manual_instances_preference_key, "")
         self._manual_instances = self._preferences.getValue(self._manual_instances_preference_key).split(",")
 
         # Store the last manual entry key
