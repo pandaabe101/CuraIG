@@ -139,7 +139,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             return
 
         um_network_key = active_machine.getMetaDataEntry("um_network_key")
-        for key, output_device in self._discovered_devices:
+        for key, output_device in self._discovered_devices.items():
             if key == um_network_key:
                 # This is the printer we have currently activated
                 return self._tryConnectingToOutputDevice(key, output_device)
