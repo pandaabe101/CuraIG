@@ -80,7 +80,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         # ZeroConf/discovery instances.
         self._zero_conf = None  # type: Optional[Zeroconf]
         self._zero_conf_browser = None
-        self._discovered_devices = { }
+        self._discovered_devices = {}
         
         # The zero-conf service changed requests are handled in a separate thread,
         # so we can re-schedule the requests which fail to get detailed service info.
@@ -98,7 +98,8 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         # Check all connections when switching active machine.
         application.globalContainerStackChanged.connect(self.reCheckConnections)
 
-    def getDiscoveredDevices(self):
+    # TODO: better typing of dict, or make discovered devices a proper model object?
+    def getDiscoveredDevices(self) -> dict:
         return self._discovered_devices
 
     def getLastManualDevice(self) -> str:
@@ -108,11 +109,11 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         self._last_manual_entry_key = ""
 
     ##  Start looking for devices on the network.
-    def start(self):
+    def start(self) -> None:
         self.startDiscovery()
 
     ##  Start looking for devices on the network.
-    def startDiscovery(self):
+    def startDiscovery(self) -> None:
         self.stop()
         if self._zero_conf_browser:
             self._zero_conf_browser.cancel()
@@ -132,7 +133,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         self.resetLastManualDevice()
 
     ##  Check all connections.
-    def reCheckConnections(self):
+    def reCheckConnections(self) -> None:
         active_machine = self._application.getGlobalContainerStack()
         if not active_machine:
             return
@@ -171,14 +172,14 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             self.getOutputDeviceManager().addOutputDevice(self._discovered_devices[key])
 
     ##  Stop checking for devices on the network.
-    def stop(self):
+    def stop(self) -> None:
         if not self._zero_conf:
             return
         Logger.log("d", "Closing ZeroConf...")
         self._zero_conf.close()
 
     ##  Remove a networked device.
-    def removeManualDevice(self, key: str, address: str = None):
+    def removeManualDevice(self, key: str, address: str = None) -> None:
         if key in self._discovered_devices:
             if not address:
                 address = self._discovered_devices[key].ipAddress
@@ -196,6 +197,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             self._preferences.setValue(self._manual_instances_preference_key, ",".join(self._manual_instances))
 
         instance_name = "manual:%s" % address
+        # TODO: make this a model object?
         properties = {
             b"name": address.encode("utf-8"),
             b"address": address.encode("utf-8"),
@@ -210,22 +212,24 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             
         self._last_manual_entry_key = instance_name
         self._checkManualDevice(address)
-        
-    ##  If a user is signed in, we ask the Ultimaker Cloud API for a list of their connected clusters.
-    #   Each cluster also returns the local IP address so we can cross-reference the local and remove clusters later on.
-    def _checkCloudDevices(self) -> None:
-        ultimaker_account = self._application.getCuraAPI().account  # type: Account
-        
-        if not ultimaker_account.isLoggedIn:
-            # The user is not logged in so we cannot get the remote clusters.
-            return
-        
-        url = QUrl(self._cloud_api_clusters)
-        request = QNetworkRequest(url)
-        self._network_manager.get(request)
-        
-    def _onCheckCloudDevices(self, reply: QNetworkReply) -> None:
-        pass
+
+    ##  Handle network request replies from the network manager.
+    #   Automatically maps the request URL to the correct callback for further handling.
+    def _onNetworkRequestFinished(self, reply):
+        reply_url_to_callback_map = {
+            self._cloud_api_clusters: self._onCheckCloudClusters,
+            self._local_api_system: self._onCheckManualDevice,
+            self._local_cluster_api_printers: self._onCheckClusterPrinters
+        }  # type: Dict[str, Callable]
+
+        # Find the appropriate callback URL to handle this reply.
+        # We simply call the first one that matches the request URL signature.
+        for url, callback in reply_url_to_callback_map:
+            if url in reply.url().toString():
+                return callback(reply)
+
+        # For some reason no callback method was found, so we should at least log that this happened.
+        Logger.log("w", "No callback method was selected for a network reply: %s", reply.url().toString())
 
     ##  Check if a UM3 family device exists at this address.
     #   If a printer responds, it will replace the preliminary printer created above
@@ -277,7 +281,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             
         if has_cluster_capable_firmware and has_cloud_capable_firmware:
             # We need to request the cloud info to figure out which clusters are available remotely.
-            self._checkCloudDevices()
+            self._checkCloudClusters()
             
     ##  Get more details about the printers in a cluster.
     def _checkClusterPrinters(self, address: str):
@@ -286,7 +290,7 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
         self._network_manager.get(request)
     
     ##  Handle the response of getting the details about all printers in a cluster.
-    #   This call was initiated by self._checkClusterPrinters
+    #   This call was initiated by self._checkClusterPrinters.
     def _onCheckClusterPrinters(self, reply: QNetworkReply):
         if reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) != 200:
             # Something went wrong with checking the amount of printers the cluster has!
@@ -308,23 +312,24 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
             self._onRemoveDevice(instance_name)
             self._onAddDevice(instance_name, address, properties)
 
-    ##  Handle network request replies from the network manager.
-    #   Automatically maps the request URL to the correct callback for further handling.
-    def _onNetworkRequestFinished(self, reply):
-        reply_url_to_callback_map = {
-            self._cloud_api_clusters: self._onCheckCloudDevices,
-            self._local_api_system: self._onCheckManualDevice,
-            self._local_cluster_api_printers: self._onCheckClusterPrinters
-        }  # type: Dict[str, Callable]
-        
-        # Find the appropriate callback URL to handle this reply.
-        # We simply call the first one that matches the request URL signature.
-        for url, callback in reply_url_to_callback_map:
-            if url in reply.url().toString():
-                return callback(reply)
-        
-        # For some reason no callback method was found, so we should at least log that this happened.
-        Logger.log("w", "No callback method was selected for a network reply: %s", reply.url().toString())
+    ##  If a user is signed in, we ask the Ultimaker Cloud API for a list of their connected clusters.
+    #   Each cluster also returns the local IP address so we can cross-reference the local and remove clusters later on.
+    def _checkCloudClusters(self) -> None:
+        ultimaker_account = self._application.getCuraAPI().account  # type: Account
+
+        if not ultimaker_account.isLoggedIn:
+            # The user is not logged in so we cannot get the remote clusters.
+            return
+
+        url = QUrl(self._cloud_api_clusters)
+        request = QNetworkRequest(url)
+        self._network_manager.get(request)
+
+    ##  Handle the response of getting the details about the cloud connected clusters.
+    #   This call was initiated by self._checkCloudClusters
+    def _onCheckCloudClusters(self, reply: QNetworkReply) -> None:
+        print("reply", reply)
+        pass
 
     def _onRemoveDevice(self, device_id):
         device = self._discovered_devices.pop(device_id, None)
@@ -404,8 +409,9 @@ class UM3OutputDevicePlugin(OutputDevicePlugin):
 
     ##  Handler for zeroConf detection.
     #   Return True or False indicating if the process succeeded.
-    #   Note that this function can take over 3 seconds to complete. Be carefull calling it from the main thread.
-    def _onServiceChanged(self, zero_conf, service_type, name, state_change):
+    #   Note that this function can take over 3 seconds to complete.
+    #   Be careful calling it from the main thread.
+    def _onServiceChanged(self, zero_conf, service_type, name, state_change: ServiceStateChange) -> bool:
         if state_change == ServiceStateChange.Added:
             Logger.log("d", "Bonjour service added: %s" % name)
 
