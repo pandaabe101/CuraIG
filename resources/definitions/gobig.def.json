@@ -1,0 +1,53 @@
+{
+    "id": "gobig",
+    "version": 2,
+    "name": "Go Big",
+    "inherits": "fdmprinter",
+    "metadata": {
+        "visible": true,
+        "author": "kerogers",
+        "manufacturer": "Go Big 3D Printers",
+        "file_formats": "text/x-gcode",
+        "has_variants": true,
+        "has_materials": false,
+        "has_machine_quality": true,
+        "preferred_variant_name": "0.6 mm",
+        "variants_name": "Nozzle Diam"
+	},
+    "overrides": {
+        "machine_name": { "default_value": "GoBig" },
+
+        "machine_width": { "default_value": 604 },
+        "machine_depth": { "default_value": 578 },
+        "machine_height": { "default_value": 622 },
+
+        "machine_heated_bed": { "default_value": true },
+        "machine_head_with_fans_polygon": { "default_value": [[0, 0], [0, 0], [0, 0], [0, 0]] },
+		"machine_gcode_flavor": { "default_value": "Repetier" },
+        "machine_center_is_zero": { "default_value": false },
+
+        "speed_print": { "default_value": 40 },
+        "speed_travel": { "default_value": 100 },
+        "max_feedrate_z_override": { "default_value": 16 },
+
+        "retraction_amount": { "default_value": 0.7 },
+        "retraction_speed": { "default_value": 30},
+        "retract_at_layer_change": { "default_value": true},
+		
+        "material_diameter": { "default_value": 1.75 },
+        "material_flow": { "default_value": 90 },
+        "machine_nozzle_size": { "default_value": 0.8 },
+        "infill_overlap": { "default_value": 25 },
+		
+        "line_width": { "default_value": 0.8 },
+		"layer_height": { "default_value": 0.4},
+		"layer_height_0": { "default_value": 0.5},
+
+        "machine_start_gcode": {
+            "default_value": "; v1.0 start script\nG28 ; home all axes\nG1 Z0.2 F1200 ; move up a bit\nG92 E0 ; zero the extruder\nG1 X50 E16 F600 ; extrude\nG1 Z0.8 F100 ; move up a bit\nG4 P2000 ; pause\nG92 E0 ; zero the extruded length again"
+        },
+        "machine_end_gcode": {
+            "default_value": "; v1.0 Gen2 Ending Script\nG91 ; relative motion (relative to last position)\nM107 ; turn off cooling fan\nM104 S0 ; turn off extruder\nM140 S0 ; turn off bed\nM106 S0 ; turn off fans\nG0 Z10 F500 ; move up 10 mm  ; Remove if using full height\n;G1 E4 F500 ; unretract\n;G90 ; absolute motion (relative to origin)\nG28 Y ; home Y\nG28 X\nM84 ; disable motors"
+        }
+    }
+}

@@ -1,0 +1,48 @@
+{
+    "version": 2,
+    "name": "Kossel 2020",
+    "inherits": "fdmprinter",
+    "metadata": {
+        "visible": true,
+        "author": "Keith Rogers",
+        "manufacturer": "Folgertech",
+        "file_formats": "text/x-gcode",
+        "platform": "kossel_2020_build_platform.stl",
+        "platform_offset": [0, -0.25, 0]
+    },
+    "overrides": {
+        "machine_heated_bed": {
+            "default_value": true
+        },
+        "machine_width": {
+            "default_value": 200
+        },
+        "machine_height": {
+            "default_value": 277.4
+        },
+        "machine_depth": {
+            "default_value": 200
+        },
+        "machine_center_is_zero": {
+            "default_value": true
+        },
+        "machine_nozzle_size": {
+            "default_value": 0.40
+        },
+        "material_diameter": {
+            "default_value": 1.75
+        },
+        "machine_gcode_flavor": {
+            "default_value": "RepRap (Marlin/Sprinter)"
+        },
+        "machine_start_gcode": {
+            "default_value": "M107 ;Start fan off\nG28 ;Home\nG90 ;Absolute positioning\nG92 E0 ;Zero extruder\nG1 E-4 ;Pull back filament\nG92 E0 ;Zero extruder\nG29 ;Auto Leveling\nM500 ;Write mesh to memory\nG1 E9 ;Prime extruder\nG92 E0 ;Zero extruder\n;Prime with outer rim extrusion\n G1 F1800 X3.054 Y97.252 E0.10186\nG1 X0.00 Y97.3 E0.20344\nG1 X-3.054 Y97.252 E0.30503\nG1 X-6.113 Y97.108 E0.40689\nG1 X-9.154 Y96.868 E0.50835\nG1 X-12.198 Y96.532 E0.61021\nG1 X-15.224 Y96.102 E0.71186\nG1 X-18.229 Y95.577 E0.81332\nG1 X-21.228 Y94.956 E0.91519\nG1 X-24.194 Y94.244 E1.01664\nG1 X-27.149 Y93.436 E1.11853\nG1 X-30.07 Y92.537 E1.22018\nG1 X-32.956 Y91.549 E1.32164\nG1 X-35.815 Y90.468 E1.4233\nG1 X-38.645 Y89.296 E1.52518\nG1 X-41.425 Y88.042 E1.62661\nG1 X-44.176 Y86.693 E1.72852\nG1 X-46.877 Y85.263 E1.83017\nG1 X-49.532 Y83.748 E1.93184\nG92 E0 ; Zero extruder"
+        },
+        "machine_end_gcode": {
+            "default_value": "M104 S0 ; Extruder heater off\nM140 S0 ; turn off bed\nG91 ;Relative positioning\nG1 E-1 F300 ;Retract filament 1mm\nG28 ; home all axes\nM84 ; disable motors\nG90 ;Absolute Positioning"
+        },
+        "machine_shape": {
+            "default_value": "elliptic"
+        }
+    }
+}
